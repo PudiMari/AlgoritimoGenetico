@@ -39,10 +39,12 @@ x_test = selector.transform(x_test)
 
 def criar_individuo_randomForest(params_a):
     
+    column_names_modelos = [' Modelos', 'F1 Score']
+    
     start_time = time.time()
     
     with_mean, with_std, strategy, k, n_estimators, max_depth, min_samples_split, random_state = params_a
-
+    
     imputer = SimpleImputer(strategy=strategy)
     selector = SelectKBest(k=k)
 
@@ -51,8 +53,14 @@ def criar_individuo_randomForest(params_a):
         
     x_train_selected = selector.fit_transform(x_train_imputed, y_train)
     x_test_selected = selector.fit_transform(x_test_imputed, y_test)
-        
+    
     def evaluate(individual):
+
+        x_train_imputed = imputer.fit_transform(x_train)
+        x_test_imputed = imputer.transform(x_test)
+        
+        x_train_selected = selector.fit_transform(x_train_imputed, y_train)
+        x_test_selected = selector.fit_transform(x_test_imputed, y_test)
         
         model = RandomForestClassifier(
             n_estimators=n_estimators,
@@ -64,6 +72,13 @@ def criar_individuo_randomForest(params_a):
         
         scores = cross_val_score(model, x_train_selected, y_train, cv=5, scoring='f1_weighted')
         f1 = scores.mean()
+        
+        with open('modelos_randomForest.csv', mode='a', newline='') as file:
+            writer = csv.writer(file)
+        
+            if file.tell() == 0:
+                writer.writerow(column_names_modelos)
+            writer.writerow([model, f1])
         
         return f1,
 
@@ -83,7 +98,7 @@ def criar_individuo_randomForest(params_a):
     population = toolbox.population(n=10)
 
     #modificar gerações
-    algorithms.eaMuPlusLambda(population, toolbox, mu=10, lambda_=50, cxpb=0.7, mutpb=0.3, ngen=20, stats=None, halloffame=None)
+    algorithms.eaMuPlusLambda(population, toolbox, mu=10, lambda_=50, cxpb=0.7, mutpb=0.3, ngen=3, stats=None, halloffame=None)
 
     best_individual = tools.selBest(population, k=36)[0]
     print("Melhores hiperparametros encontrados:", best_individual)
@@ -107,7 +122,7 @@ def main():
     column_names = [' Melhor Individuo', 'Tempo de execucao', 'F1 Score']
     params_a = [True, True, 'mean', 36, 18, 17, 4, RANDOM_STATE]
 
-    for _ in range(3):
+    for _ in range(1):
         best_individual, start_time, f1 = criar_individuo_randomForest(params_a)
     
         end_time = time.time()
