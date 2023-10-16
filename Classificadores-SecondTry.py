@@ -15,7 +15,7 @@ from sklearn.impute import *
 from sklearn.pipeline import Pipeline
 from sklearn.datasets import *
 from sklearn.feature_selection import *
-from sklearn.model_selection import GridSearchCV
+from sklearn.model_selection import GridSearchCV, RandomizedSearchCV
 from deap import base, creator, tools, algorithms
 import warnings
 warnings.filterwarnings("ignore", category=UserWarning)
@@ -24,6 +24,7 @@ import numpy as np
 import random
 import time
 import csv
+import multiprocessing
 
 RANDOM_STATE = 42
 
@@ -50,20 +51,23 @@ x_train_selected = selector.fit_transform(x_train_imputed, y_train)
 x_test_selected = selector.fit_transform(x_test_imputed, y_test)
 
 param_grid = {
-    'n_estimators': [10, 50, 100],
-    'max_depth': [None, 10, 20],
-    'min_samples_split': [2, 5, 10],
-    'min_samples_leaf': [1, 2, 4]
+    'n_estimators': [10, 50, 100, 200],
+    'max_depth': [None, 10, 20, 30],
+    'min_samples_split': [2, 5, 10, 20],
+    'min_samples_leaf': [1, 2, 4, 8],
 }
 
 model = RandomForestClassifier(random_state=RANDOM_STATE)
 
-grid_search = GridSearchCV(model, param_grid, scoring='f1_weighted', cv=5)
+with multiprocessing.Pool() as pool:
+    grid_search = GridSearchCV(model, param_grid, cv=5, n_jobs=4, scoring='f1_weighted', verbose=True)
 
 grid_search.fit(x_train_selected, y_train)
+
 best_model = grid_search.best_estimator_
 
 print("Best Model: ", best_model)
+print("Best Params: ", grid_search.best_params_)
     
 
 #model = RandomForestClassifier(
@@ -84,9 +88,9 @@ print("Best Model: ", best_model)
 #print("Cross-Validation Accuracy: %0.2f (+/- %0.2f)" % (scores.mean(), scores.std() * 2))
 
 creator.create("FitnessMax", base.Fitness, weights=(1.0,))
-creator.create("Individual", list, fitness=creator.FitnessMax)
+creator.create("Individual", list, fitness=creator.FitnessMax, size=20)
     
-ind = creator.Individual([1, 0, 1, 1, 0])
+#ind = creator.Individual([1, 0, 1, 1, 0])
 
 #print(ind)
 #print(type(ind))
@@ -121,9 +125,8 @@ def evalOneMax(individual):
     x_test_selected = x_test[:, selected_features]
     best_model.fit(x_train_selected, y_train)
 
-    y_pred = best_model.predict(x_test_selected)
-
-    f1 = f1_score(y_test, y_pred, average='weighted')
+    scores = cross_val_score(model, x_train_selected, y_train, cv=5, scoring='f1_weighted')
+    f1 = scores.mean()
     
     with open('modelos_randomForest.csv', mode='a', newline='') as file:
             writer = csv.writer(file)
