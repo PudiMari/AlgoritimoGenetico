@@ -25,6 +25,7 @@ import time
 import csv
 
 RANDOM_STATE = 42
+column_names_modelos = [' Modelos', 'F1 Score']
 
 df = pd.read_csv("arrhythmia.csv", header=None).replace("?", np.nan)
 data = df.to_numpy()
@@ -37,12 +38,59 @@ selector = VarianceThreshold(threshold=0.01)
 x_train = selector.fit_transform(x_train)
 x_test = selector.transform(x_test)
 
-def criar_individuo_randomForest(params_a):
+def evaluate(individual):
     
-    column_names_modelos = [' Modelos', 'F1 Score']
+    imputer = SimpleImputer(strategy='mean')
+    selector = SelectKBest(k=36)
+    
+    x_train_imputed = imputer.fit_transform(x_train)
+    x_test_imputed = imputer.transform(x_test)
+
+    x_train_selected = selector.fit_transform(x_train_imputed, y_train)
+    x_test_selected = selector.fit_transform(x_test_imputed, y_test)
+    
+    n_estimators, max_depth, min_samples_split, min_samples_leaf = individual
+    
+    pipe = Pipeline([('scaler', StandardScaler()), ('randomForest', RandomForestClassifier( n_estimators=n_estimators, max_depth=max_depth, min_samples_split=min_samples_split,random_state=RANDOM_STATE))])
+    
+    pipe.fit(x_train_selected, y_train)
+
+    scores = cross_val_score(pipe, x_train_selected, y_train, cv=5, scoring='f1_weighted')
+    f1 = scores.mean()
+
+    with open('modelos_randomForest.csv', mode='a', newline='') as file:
+        writer = csv.writer(file)
+
+        if file.tell() == 0:
+            writer.writerow(column_names_modelos)
+        writer.writerow([individual, f1])
+
+    return f1,
+
+def criar_individuo(ind_class, param_grid):
+    individuo = []
+    for key, values in param_grid.items():
+        numero = np.random.randint(0, len(values))
+        individuo.append(values[numero])
+    return ind_class(individuo)
+
+def criar_individuo_randomForest( params_a):
     
     start_time = time.time()
     
+    #param_grid = {
+    #    'n_estimators': [10, 50, 100, 200],
+    #    'max_depth': [None, 10, 20, 30],
+    #    'min_samples_split': [2, 5, 10, 20],
+    #    'min_samples_leaf': [1, 2, 4, 8],
+    #}
+    
+    param_grid = {
+        'n_estimators': [10, 50, 100, 200],
+        'max_depth': [None, 10, 20, 30],
+        'min_samples_split': [2, 5, 10, 20],
+        'min_samples_leaf': [1, 2, 4, 8],
+    }
     with_mean, with_std, strategy, k, n_estimators, max_depth, min_samples_split, random_state = params_a
     
     imputer = SimpleImputer(strategy=strategy)
@@ -53,41 +101,16 @@ def criar_individuo_randomForest(params_a):
         
     x_train_selected = selector.fit_transform(x_train_imputed, y_train)
     x_test_selected = selector.fit_transform(x_test_imputed, y_test)
+
+    #ind = criar_individuo(param_grid)
+    #print("individuo", ind)
     
-    def evaluate(individual):
-
-        x_train_imputed = imputer.fit_transform(x_train)
-        x_test_imputed = imputer.transform(x_test)
-        
-        x_train_selected = selector.fit_transform(x_train_imputed, y_train)
-        x_test_selected = selector.fit_transform(x_test_imputed, y_test)
-        
-        model = RandomForestClassifier(
-            n_estimators=n_estimators,
-            max_depth=max_depth,
-            min_samples_split=min_samples_split,
-            random_state=random_state
-        )
-        model.fit(x_train_selected, y_train)
-        
-        scores = cross_val_score(model, x_train_selected, y_train, cv=5, scoring='f1_weighted')
-        f1 = scores.mean()
-        
-        with open('modelos_randomForest.csv', mode='a', newline='') as file:
-            writer = csv.writer(file)
-        
-            if file.tell() == 0:
-                writer.writerow(column_names_modelos)
-            writer.writerow([model, f1])
-        
-        return f1,
-
     creator.create("FitnessMax", base.Fitness, weights=(1.0,))
     creator.create("Individual", list, fitness=creator.FitnessMax)
 
     toolbox = base.Toolbox()
     toolbox.register("attr_int", np.random.randint, 1, 100)
-    toolbox.register("individual", tools.initCycle, creator.Individual, (toolbox.attr_int, ), n=4)
+    toolbox.register("individual", criar_individuo, creator.Individual, param_grid=param_grid)
     toolbox.register("population", tools.initRepeat, list, toolbox.individual)
 
     toolbox.register("evaluate", evaluate)
@@ -122,7 +145,7 @@ def main():
     column_names = [' Melhor Individuo', 'Tempo de execucao', 'F1 Score']
     params_a = [True, True, 'mean', 36, 18, 17, 4, RANDOM_STATE]
 
-    for _ in range(1):
+    for _ in range(5):
         best_individual, start_time, f1 = criar_individuo_randomForest(params_a)
     
         end_time = time.time()
