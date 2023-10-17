@@ -37,6 +37,37 @@ selector = VarianceThreshold(threshold=0.01)
 x_train = selector.fit_transform(x_train)
 x_test = selector.transform(x_test)
 
+def evaluate(individual):
+    x_train_imputed = imputer.fit_transform(x_train)
+    x_test_imputed = imputer.transform(x_test)
+
+    x_train_selected = selector.fit_transform(x_train_imputed, y_train)
+    x_test_selected = selector.fit_transform(x_test_imputed, y_test)
+
+    n_estimators, max_depth, min_samples_split = individual
+    
+    model = RandomForestClassifier(
+        n_estimators=n_estimators,
+        max_depth=max_depth,
+        min_samples_split=min_samples_split,
+        random_state=random_state
+    )
+    
+    model.fit(x_train_selected, y_train)
+
+    scores = cross_val_score(model, x_train_selected, y_train, cv=5, scoring='f1_weighted')
+    f1 = scores.mean()
+
+    with open('modelos_randomForest.csv', mode='a', newline='') as file:
+        writer = csv.writer(file)
+
+        if file.tell() == 0:
+            writer.writerow(column_names_modelos)
+            writer.writerow([model, f1])
+
+    return f1,
+
+
 def criar_individuo_randomForest(params_a):
     
     column_names_modelos = [' Modelos', 'F1 Score']
@@ -53,34 +84,6 @@ def criar_individuo_randomForest(params_a):
         
     x_train_selected = selector.fit_transform(x_train_imputed, y_train)
     x_test_selected = selector.fit_transform(x_test_imputed, y_test)
-    
-    def evaluate(individual):
-
-        x_train_imputed = imputer.fit_transform(x_train)
-        x_test_imputed = imputer.transform(x_test)
-        
-        x_train_selected = selector.fit_transform(x_train_imputed, y_train)
-        x_test_selected = selector.fit_transform(x_test_imputed, y_test)
-        
-        model = RandomForestClassifier(
-            n_estimators=n_estimators,
-            max_depth=max_depth,
-            min_samples_split=min_samples_split,
-            random_state=random_state
-        )
-        model.fit(x_train_selected, y_train)
-        
-        scores = cross_val_score(model, x_train_selected, y_train, cv=5, scoring='f1_weighted')
-        f1 = scores.mean()
-        
-        with open('modelos_randomForest.csv', mode='a', newline='') as file:
-            writer = csv.writer(file)
-        
-            if file.tell() == 0:
-                writer.writerow(column_names_modelos)
-            writer.writerow([model, f1])
-        
-        return f1,
 
     creator.create("FitnessMax", base.Fitness, weights=(1.0,))
     creator.create("Individual", list, fitness=creator.FitnessMax)
