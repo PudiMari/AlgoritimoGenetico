@@ -1,4 +1,5 @@
 import pandas as pd
+from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.feature_selection import SelectKBest
@@ -65,10 +66,23 @@ param_grid_SVC = {
     'degree': range(len(PARAMS_DEGREE)),
 }
 
+PARAMS_STRATEGY = ['mean', 'median', 'most_frequent']
+PARAMS_K = list(range(3, x_train.shape[1], 5))
+PARAMS_PENALTY = ['l2', None]
+PARAMS_C = list(range(1, 20))
+PARAMS_SOLVER = ['newton-cg', 'lbfgs', 'sag', 'saga', 'newton-cholesky']
+
+param_grid_LogReg = {
+    'strategy': range(len(PARAMS_STRATEGY)),
+    'k': range(len(PARAMS_K)),
+    'penalty': range(len(PARAMS_PENALTY)),
+    'c': range(len(PARAMS_C)),
+    'solver': range(len(PARAMS_SOLVER)),
+}
 def evaluate_RF(individual):
     strategy, k, n_estimators, max_depth, min_samples_split, min_samples_leaf = individual
 
-    print(individual)
+    # print(individual)
 
     pipe = Pipeline([
         ('imputer', SimpleImputer(strategy=PARAMS_STRATEGY[strategy], copy=True)),
@@ -103,7 +117,7 @@ def evaluate_RF(individual):
 def evaluate_SVC(individual):
     strategy, k, kernel, c, degree = individual
 
-    #print(individual)
+    # print(individual)
 
     pipe = Pipeline([
         ('imputer', SimpleImputer(strategy=PARAMS_STRATEGY[strategy], copy=True)),
@@ -133,13 +147,46 @@ def evaluate_SVC(individual):
 
     return f1,
 
+def evaluate_LogReg(individual):
+    strategy, k, penalty, c, solver = individual
+
+    # print(individual)
+
+    pipe = Pipeline([
+        ('imputer', SimpleImputer(strategy=PARAMS_STRATEGY[strategy], copy=True)),
+        ('scaler', StandardScaler()),
+        ('feature-selection', SelectKBest(k=PARAMS_K[k])),
+        ('logistic regression', LogisticRegression(
+            penalty=PARAMS_PENALTY[penalty],
+            C=PARAMS_C[c],
+            solver=PARAMS_SOLVER[solver],
+            random_state=RANDOM_STATE))])
+
+    start_time = datetime.now()
+    pipe.fit(x_train, y_train)
+    scores = cross_val_score(pipe, x_test, y_test, cv=5, scoring='f1_weighted')
+    f1 = scores.mean()
+    end_time = datetime.now()
+
+    records.append({
+        "strategy": PARAMS_STRATEGY[strategy],
+        "k": PARAMS_K[k],
+        "penalty": PARAMS_PENALTY[penalty],
+        "c": PARAMS_C[c],
+        "solver": PARAMS_SOLVER[solver],
+        "f1": f1,
+        "elapsed_time": (end_time - start_time).total_seconds()
+    })
+
+    return f1,
+
 
 def criar_individuo(ind_class, param_grid):
     individuo = []
     for key, values in param_grid.items():
         numero = np.random.randint(0, len(values))
         individuo.append(numero)
-    #print(individuo)
+    # print(individuo)
     return ind_class(individuo)
 
 
@@ -249,21 +296,79 @@ def criar_individuo_SVC():
     print("F1-score:", f1)
     return best_individual, start_time, f1
 
+def criar_individuo_LogReg():
+    creator.create("FitnessMax", base.Fitness, weights=(1.0,))
+    creator.create("Individual", list, fitness=creator.FitnessMax)
+
+    toolbox = base.Toolbox()
+    # toolbox.register("attr_int", np.random.randint, 1, 100)
+    toolbox.register("individual", criar_individuo, creator.Individual, param_grid=param_grid_LogReg)
+    toolbox.register("population", tools.initRepeat, list, toolbox.individual)
+
+    toolbox.register("evaluate", evaluate_LogReg)
+    toolbox.register("mate", tools.cxTwoPoint)
+    toolbox.register("mutate", tools.mutUniformInt,
+                     low=np.zeros(5),
+                     up=[
+                         len(PARAMS_STRATEGY) - 1,
+                         len(PARAMS_K) - 1,
+                         len(PARAMS_PENALTY) - 1,
+                         len(PARAMS_C) - 1,
+                         len(PARAMS_SOLVER) - 1,
+                     ], indpb=0.2)
+    toolbox.register("select", tools.selTournament, tournsize=3)
+
+    population = toolbox.population(n=10)
+
+    # modificar gerações
+    start_time = datetime.now()
+    algorithms.eaMuPlusLambda(population, toolbox, mu=10, lambda_=50, cxpb=0.7, mutpb=0, ngen=3, stats=None,
+                              halloffame=None)
+    end_time = datetime.now()
+
+    best_individual = tools.selBest(population, k=36)[0]
+    print(f"Melhores hiperparametros encontrados: {best_individual} duration: {end_time - start_time}")
+
+    strategy, k, penalty, c, solver = best_individual
+
+    best_model = Pipeline([
+        ('imputer', SimpleImputer(strategy=PARAMS_STRATEGY[strategy], copy=True)),
+        ('scaler', StandardScaler()),
+        ('feature-selection', SelectKBest(k=PARAMS_K[k])),
+        ('logistic regression', LogisticRegression(
+            penalty=PARAMS_PENALTY[penalty],
+            C=PARAMS_C[c],
+            solver=PARAMS_SOLVER[solver],
+            random_state=RANDOM_STATE))])
+
+    best_model.fit(x_train, y_train)
+    scores = cross_val_score(best_model, x_test, y_test, cv=5, scoring='f1_weighted')
+    f1 = scores.mean()
+
+    print("F1-score:", f1)
+    return best_individual, start_time, f1
+
 
 def main():
     global records
     for i in range(5):
 
-        #RandomForest
-        #best_individual, start_time, f1 = criar_individuo_randomForest()
-        #df = pd.DataFrame.from_records(records)
-        #df.to_csv(f'resultados_randomForest_{i}.csv', index=False, header=True)
-        #records = list()
+        # RandomForest
+        best_individual, start_time, f1 = criar_individuo_randomForest()
+        df = pd.DataFrame.from_records(records)
+        df.to_csv(f'resultados_randomForest_{i}.csv', index=False, header=True)
+        records = list()
 
-        #SVC
+        # SVC
         best_individual, start_time, f1 = criar_individuo_SVC()
         df = pd.DataFrame.from_records(records)
         df.to_csv(f'resultados_SVC_{i}.csv', index=False, header=True)
+        records = list()
+
+        # Logistic Regression
+        best_individual, start_time, f1 = criar_individuo_LogReg()
+        df = pd.DataFrame.from_records(records)
+        df.to_csv(f'resultados_LogReg_{i}.csv', index=False, header=True)
         records = list()
 
 
