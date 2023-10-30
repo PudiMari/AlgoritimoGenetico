@@ -5,6 +5,7 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.feature_selection import SelectKBest
 from sklearn.model_selection import cross_val_score
 from sklearn.ensemble import AdaBoostClassifier
+from sklearn.neighbors import KNeighborsClassifier
 from sklearn.preprocessing import *
 from sklearn.decomposition import *
 from sklearn.impute import *
@@ -78,6 +79,22 @@ param_grid_LogReg = {
     'penalty': range(len(PARAMS_PENALTY)),
     'c': range(len(PARAMS_C)),
     'solver': range(len(PARAMS_SOLVER)),
+}
+
+PARAMS_STRATEGY = ['mean', 'median', 'most_frequent']
+PARAMS_K = list(range(3, x_train.shape[1], 5))
+PARAMS_N_NEIGHBORS = list(range(2, 20))
+PARAMS_WEIGHTS = ['uniform', 'distance', None]
+PARAMS_ALGORITHM = ['auto', 'ball_tree', 'kd_tree', 'brute']
+PARAMS_LEAF_SIZE = list(range(10, 50))
+
+param_grid_KNN = {
+    'strategy': range(len(PARAMS_STRATEGY)),
+    'k': range(len(PARAMS_K)),
+    'n_neighbors': range(len(PARAMS_N_NEIGHBORS)),
+    'weights': range(len(PARAMS_WEIGHTS)),
+    'algorithm': range(len(PARAMS_ALGORITHM)),
+    'leaf_size': range(len(PARAMS_LEAF_SIZE)),
 }
 def evaluate_RF(individual):
     strategy, k, n_estimators, max_depth, min_samples_split, min_samples_leaf = individual
@@ -180,6 +197,39 @@ def evaluate_LogReg(individual):
 
     return f1,
 
+def evaluate_KNN(individual):
+    strategy, k, n_neighbors, weights, algorithm, leaf_size = individual
+
+    # print(individual)
+
+    pipe = Pipeline([
+        ('imputer', SimpleImputer(strategy=PARAMS_STRATEGY[strategy], copy=True)),
+        ('scaler', StandardScaler()),
+        ('feature-selection', SelectKBest(k=PARAMS_K[k])),
+        ('knn', KNeighborsClassifier(
+            n_neighbors=PARAMS_N_NEIGHBORS[n_neighbors],
+            weights=PARAMS_WEIGHTS[weights],
+            algorithm=PARAMS_ALGORITHM[algorithm],
+            leaf_size=PARAMS_LEAF_SIZE[leaf_size]))])
+
+    start_time = datetime.now()
+    pipe.fit(x_train, y_train)
+    scores = cross_val_score(pipe, x_test, y_test, cv=5, scoring='f1_weighted')
+    f1 = scores.mean()
+    end_time = datetime.now()
+
+    records.append({
+        "strategy": PARAMS_STRATEGY[strategy],
+        "k": PARAMS_K[k],
+        "n_neighbors": PARAMS_N_NEIGHBORS[n_neighbors],
+        "weights": PARAMS_WEIGHTS[weights],
+        "algorithm": PARAMS_ALGORITHM[algorithm],
+        "leaf_size": PARAMS_LEAF_SIZE[leaf_size],
+        "f1": f1,
+        "elapsed_time": (end_time - start_time).total_seconds()
+    })
+
+    return f1,
 
 def criar_individuo(ind_class, param_grid):
     individuo = []
@@ -222,7 +272,7 @@ def criar_individuo_randomForest():
     end_time = datetime.now()
 
     best_individual = tools.selBest(population, k=36)[0]
-    print(f"Melhores hiperparametros encontrados: {best_individual} duration: {end_time - start_time}")
+    print(f"Melhores hiperparametros encontrados com Random Forest: {best_individual} duration: {end_time - start_time}")
 
     strategy, k, n_estimators, max_depth, min_samples_split, min_samples_leaf = best_individual
 
@@ -275,7 +325,7 @@ def criar_individuo_SVC():
     end_time = datetime.now()
 
     best_individual = tools.selBest(population, k=36)[0]
-    print(f"Melhores hiperparametros encontrados: {best_individual} duration: {end_time - start_time}")
+    print(f"Melhores hiperparametros encontrados com SVC: {best_individual} duration: {end_time - start_time}")
 
     strategy, k, kernel, c, degree = best_individual
 
@@ -327,7 +377,7 @@ def criar_individuo_LogReg():
     end_time = datetime.now()
 
     best_individual = tools.selBest(population, k=36)[0]
-    print(f"Melhores hiperparametros encontrados: {best_individual} duration: {end_time - start_time}")
+    print(f"Melhores hiperparametros encontrados com Logistic Regression: {best_individual} duration: {end_time - start_time}")
 
     strategy, k, penalty, c, solver = best_individual
 
@@ -340,6 +390,59 @@ def criar_individuo_LogReg():
             C=PARAMS_C[c],
             solver=PARAMS_SOLVER[solver],
             random_state=RANDOM_STATE))])
+
+    best_model.fit(x_train, y_train)
+    scores = cross_val_score(best_model, x_test, y_test, cv=5, scoring='f1_weighted')
+    f1 = scores.mean()
+
+    print("F1-score:", f1)
+    return best_individual, start_time, f1
+
+def criar_individuo_KNN():
+    creator.create("FitnessMax", base.Fitness, weights=(1.0,))
+    creator.create("Individual", list, fitness=creator.FitnessMax)
+
+    toolbox = base.Toolbox()
+    # toolbox.register("attr_int", np.random.randint, 1, 100)
+    toolbox.register("individual", criar_individuo, creator.Individual, param_grid=param_grid_KNN)
+    toolbox.register("population", tools.initRepeat, list, toolbox.individual)
+
+    toolbox.register("evaluate", evaluate_KNN)
+    toolbox.register("mate", tools.cxTwoPoint)
+    toolbox.register("mutate", tools.mutUniformInt,
+                     low=np.zeros(6),
+                     up=[
+                         len(PARAMS_STRATEGY) - 1,
+                         len(PARAMS_K) - 1,
+                         len(PARAMS_N_NEIGHBORS) - 1,
+                         len(PARAMS_WEIGHTS) - 1,
+                         len(PARAMS_ALGORITHM) - 1,
+                         len(PARAMS_LEAF_SIZE) - 1,
+                     ], indpb=0.2)
+    toolbox.register("select", tools.selTournament, tournsize=3)
+
+    population = toolbox.population(n=10)
+
+    # modificar gerações
+    start_time = datetime.now()
+    algorithms.eaMuPlusLambda(population, toolbox, mu=10, lambda_=50, cxpb=0.7, mutpb=0, ngen=3, stats=None,
+                              halloffame=None)
+    end_time = datetime.now()
+
+    best_individual = tools.selBest(population, k=36)[0]
+    print(f"Melhores hiperparametros encontrados com KNN: {best_individual} duration: {end_time - start_time}")
+
+    strategy, k, n_neighbors, weights, algorithm, leaf_size = best_individual
+
+    best_model = Pipeline([
+        ('imputer', SimpleImputer(strategy=PARAMS_STRATEGY[strategy], copy=True)),
+        ('scaler', StandardScaler()),
+        ('feature-selection', SelectKBest(k=PARAMS_K[k])),
+        ('knn', KNeighborsClassifier(
+            n_neighbors=PARAMS_N_NEIGHBORS[n_neighbors],
+            weights=PARAMS_WEIGHTS[weights],
+            algorithm=PARAMS_ALGORITHM[algorithm],
+            leaf_size=PARAMS_LEAF_SIZE[leaf_size]))])
 
     best_model.fit(x_train, y_train)
     scores = cross_val_score(best_model, x_test, y_test, cv=5, scoring='f1_weighted')
@@ -369,6 +472,12 @@ def main():
         best_individual, start_time, f1 = criar_individuo_LogReg()
         df = pd.DataFrame.from_records(records)
         df.to_csv(f'resultados_LogReg_{i}.csv', index=False, header=True)
+        records = list()
+
+        # KNN
+        best_individual, start_time, f1 = criar_individuo_KNN()
+        df = pd.DataFrame.from_records(records)
+        df.to_csv(f'resultados_KNN_{i}.csv', index=False, header=True)
         records = list()
 
 
