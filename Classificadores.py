@@ -12,6 +12,9 @@ from sklearn.datasets import *
 from sklearn.feature_selection import *
 from deap import base, creator, tools, algorithms
 import warnings
+
+from sklearn.svm import SVC
+
 warnings.filterwarnings("ignore", category=UserWarning)
 warnings.filterwarnings("ignore", category=RuntimeWarning)
 import numpy as np
@@ -28,26 +31,41 @@ df = pd.read_csv("arrhythmia.csv", header=None).replace("?", np.nan)
 data = df.to_numpy()
 x, y = data[:, :-1], data[:, -1]
 y = pd.Series(y).apply(str)
-x_train, x_test, y_train, y_test=train_test_split(x,y,train_size=0.8,test_size=0.2,stratify=y, random_state=RANDOM_STATE)
+x_train, x_test, y_train, y_test = train_test_split(x, y, train_size=0.8, test_size=0.2, stratify=y,
+                                                    random_state=RANDOM_STATE)
 records = list()
 
 PARAMS_STRATEGY = ['mean', 'median', 'most_frequent']
 PARAMS_K = list(range(3, x_train.shape[1], 5))
-PARAMS_N_STIMATORS = list(range(1, 100, 5))
+PARAMS_N_ESTIMATORS = list(range(1, 100, 5))
 PARAMS_MAX_DEPTH = list(range(1, 20))
 PARAMS_MIN_SAMPLES_SPLIT = list(range(2, 20))
 PARAMS_MIN_SAMPLES_LEAF = list(range(2, 20))
 
-param_grid = {
+param_grid_RF = {
     'strategy': range(len(PARAMS_STRATEGY)),
     'k': range(len(PARAMS_K)),
-    'n_estimators': range(len(PARAMS_N_STIMATORS)),
+    'n_estimators': range(len(PARAMS_N_ESTIMATORS)),
     'max_depth': range(len(PARAMS_MAX_DEPTH)),
     'min_samples_split': range(len(PARAMS_MIN_SAMPLES_SPLIT)),
     'min_samples_leaf': range(len(PARAMS_MIN_SAMPLES_LEAF)),
 }
 
-def evaluate(individual):
+PARAMS_STRATEGY = ['mean', 'median', 'most_frequent']
+PARAMS_K = list(range(3, x_train.shape[1], 5))
+PARAMS_KERNEL = ['linear', 'poly', 'rbf', 'sigmoid']
+PARAMS_C = list(range(1, 20))
+PARAMS_DEGREE = list(range(3, 20))
+
+param_grid_SVC = {
+    'strategy': range(len(PARAMS_STRATEGY)),
+    'k': range(len(PARAMS_K)),
+    'kernel': range(len(PARAMS_KERNEL)),
+    'c': range(len(PARAMS_C)),
+    'degree': range(len(PARAMS_DEGREE)),
+}
+
+def evaluate_RF(individual):
     strategy, k, n_estimators, max_depth, min_samples_split, min_samples_leaf = individual
 
     print(individual)
@@ -57,7 +75,7 @@ def evaluate(individual):
         ('scaler', StandardScaler()),
         ('feature-selection', SelectKBest(k=PARAMS_K[k])),
         ('randomForest', RandomForestClassifier(
-            n_estimators=PARAMS_N_STIMATORS[n_estimators],
+            n_estimators=PARAMS_N_ESTIMATORS[n_estimators],
             max_depth=PARAMS_MAX_DEPTH[max_depth],
             min_samples_split=PARAMS_MIN_SAMPLES_SPLIT[min_samples_split],
             min_samples_leaf=PARAMS_MIN_SAMPLES_LEAF[min_samples_leaf],
@@ -72,7 +90,7 @@ def evaluate(individual):
     records.append({
         "strategy": PARAMS_STRATEGY[strategy],
         "k": PARAMS_K[k],
-        "n_estimators": PARAMS_N_STIMATORS[n_estimators],
+        "n_estimators": PARAMS_N_ESTIMATORS[n_estimators],
         "max_depth": PARAMS_MAX_DEPTH[max_depth],
         "min_samples_split": PARAMS_MIN_SAMPLES_SPLIT[min_samples_split],
         "min_samples_leaf": PARAMS_MIN_SAMPLES_LEAF[min_samples_leaf],
@@ -82,47 +100,83 @@ def evaluate(individual):
 
     return f1,
 
+def evaluate_SVC(individual):
+    strategy, k, kernel, c, degree = individual
+
+    #print(individual)
+
+    pipe = Pipeline([
+        ('imputer', SimpleImputer(strategy=PARAMS_STRATEGY[strategy], copy=True)),
+        ('scaler', StandardScaler()),
+        ('feature-selection', SelectKBest(k=PARAMS_K[k])),
+        ('svc', SVC(
+            kernel=PARAMS_KERNEL[kernel],
+            C=PARAMS_C[c],
+            degree=PARAMS_DEGREE[degree],
+            random_state=RANDOM_STATE))])
+
+    start_time = datetime.now()
+    pipe.fit(x_train, y_train)
+    scores = cross_val_score(pipe, x_test, y_test, cv=5, scoring='f1_weighted')
+    f1 = scores.mean()
+    end_time = datetime.now()
+
+    records.append({
+        "strategy": PARAMS_STRATEGY[strategy],
+        "k": PARAMS_K[k],
+        "kernel": PARAMS_KERNEL[kernel],
+        "c": PARAMS_C[c],
+        "degree": PARAMS_DEGREE[degree],
+        "f1": f1,
+        "elapsed_time": (end_time - start_time).total_seconds()
+    })
+
+    return f1,
+
+
 def criar_individuo(ind_class, param_grid):
     individuo = []
     for key, values in param_grid.items():
         numero = np.random.randint(0, len(values))
         individuo.append(numero)
-    print(individuo)
+    #print(individuo)
     return ind_class(individuo)
+
 
 def criar_individuo_randomForest():
     creator.create("FitnessMax", base.Fitness, weights=(1.0,))
     creator.create("Individual", list, fitness=creator.FitnessMax)
 
     toolbox = base.Toolbox()
-    #toolbox.register("attr_int", np.random.randint, 1, 100)
-    toolbox.register("individual", criar_individuo, creator.Individual, param_grid=param_grid)
+    # toolbox.register("attr_int", np.random.randint, 1, 100)
+    toolbox.register("individual", criar_individuo, creator.Individual, param_grid=param_grid_RF)
     toolbox.register("population", tools.initRepeat, list, toolbox.individual)
 
-    toolbox.register("evaluate", evaluate)
+    toolbox.register("evaluate", evaluate_RF)
     toolbox.register("mate", tools.cxTwoPoint)
     toolbox.register("mutate", tools.mutUniformInt,
                      low=np.zeros(6),
                      up=[
                          len(PARAMS_STRATEGY) - 1,
                          len(PARAMS_K) - 1,
-                         len(PARAMS_N_STIMATORS) - 1,
+                         len(PARAMS_N_ESTIMATORS) - 1,
                          len(PARAMS_MAX_DEPTH) - 1,
                          len(PARAMS_MIN_SAMPLES_SPLIT) - 1,
                          len(PARAMS_MIN_SAMPLES_LEAF) - 1,
-                         ], indpb=0.2)
+                     ], indpb=0.2)
     toolbox.register("select", tools.selTournament, tournsize=3)
 
     population = toolbox.population(n=10)
 
-    #modificar gerações
+    # modificar gerações
     start_time = datetime.now()
-    algorithms.eaMuPlusLambda(population, toolbox, mu=10, lambda_=50, cxpb=0.7, mutpb=0, ngen=3, stats=None, halloffame=None)
+    algorithms.eaMuPlusLambda(population, toolbox, mu=10, lambda_=50, cxpb=0.7, mutpb=0, ngen=3, stats=None,
+                              halloffame=None)
     end_time = datetime.now()
 
     best_individual = tools.selBest(population, k=36)[0]
-    print(f"Melhores hiperparametros encontrados: {best_individual} duration: {end_time-start_time}")
-                                               
+    print(f"Melhores hiperparametros encontrados: {best_individual} duration: {end_time - start_time}")
+
     strategy, k, n_estimators, max_depth, min_samples_split, min_samples_leaf = best_individual
 
     best_model = Pipeline([
@@ -130,7 +184,7 @@ def criar_individuo_randomForest():
         ('scaler', StandardScaler()),
         ('feature-selection', SelectKBest(k=PARAMS_K[k])),
         ('randomForest', RandomForestClassifier(
-            n_estimators=PARAMS_N_STIMATORS[n_estimators],
+            n_estimators=PARAMS_N_ESTIMATORS[n_estimators],
             max_depth=PARAMS_MAX_DEPTH[max_depth],
             min_samples_split=PARAMS_MIN_SAMPLES_SPLIT[min_samples_split],
             min_samples_leaf=PARAMS_MIN_SAMPLES_LEAF[min_samples_leaf],
@@ -139,17 +193,79 @@ def criar_individuo_randomForest():
     best_model.fit(x_train, y_train)
     scores = cross_val_score(best_model, x_test, y_test, cv=5, scoring='f1_weighted')
     f1 = scores.mean()
-    
+
     print("F1-score:", f1)
     return best_individual, start_time, f1
+
+def criar_individuo_SVC():
+    creator.create("FitnessMax", base.Fitness, weights=(1.0,))
+    creator.create("Individual", list, fitness=creator.FitnessMax)
+
+    toolbox = base.Toolbox()
+    # toolbox.register("attr_int", np.random.randint, 1, 100)
+    toolbox.register("individual", criar_individuo, creator.Individual, param_grid=param_grid_SVC)
+    toolbox.register("population", tools.initRepeat, list, toolbox.individual)
+
+    toolbox.register("evaluate", evaluate_SVC)
+    toolbox.register("mate", tools.cxTwoPoint)
+    toolbox.register("mutate", tools.mutUniformInt,
+                     low=np.zeros(5),
+                     up=[
+                         len(PARAMS_STRATEGY) - 1,
+                         len(PARAMS_K) - 1,
+                         len(PARAMS_KERNEL) - 1,
+                         len(PARAMS_C) - 1,
+                         len(PARAMS_DEGREE) - 1,
+                     ], indpb=0.2)
+    toolbox.register("select", tools.selTournament, tournsize=3)
+
+    population = toolbox.population(n=10)
+
+    # modificar gerações
+    start_time = datetime.now()
+    algorithms.eaMuPlusLambda(population, toolbox, mu=10, lambda_=50, cxpb=0.7, mutpb=0, ngen=3, stats=None,
+                              halloffame=None)
+    end_time = datetime.now()
+
+    best_individual = tools.selBest(population, k=36)[0]
+    print(f"Melhores hiperparametros encontrados: {best_individual} duration: {end_time - start_time}")
+
+    strategy, k, kernel, c, degree = best_individual
+
+    best_model = Pipeline([
+        ('imputer', SimpleImputer(strategy=PARAMS_STRATEGY[strategy], copy=True)),
+        ('scaler', StandardScaler()),
+        ('feature-selection', SelectKBest(k=PARAMS_K[k])),
+        ('svc', SVC(
+            kernel=PARAMS_KERNEL[kernel],
+            C=PARAMS_C[c],
+            degree=PARAMS_DEGREE[degree],
+            random_state=RANDOM_STATE))])
+
+    best_model.fit(x_train, y_train)
+    scores = cross_val_score(best_model, x_test, y_test, cv=5, scoring='f1_weighted')
+    f1 = scores.mean()
+
+    print("F1-score:", f1)
+    return best_individual, start_time, f1
+
 
 def main():
     global records
     for i in range(5):
-        best_individual, start_time, f1 = criar_individuo_randomForest()
+
+        #RandomForest
+        #best_individual, start_time, f1 = criar_individuo_randomForest()
+        #df = pd.DataFrame.from_records(records)
+        #df.to_csv(f'resultados_randomForest_{i}.csv', index=False, header=True)
+        #records = list()
+
+        #SVC
+        best_individual, start_time, f1 = criar_individuo_SVC()
         df = pd.DataFrame.from_records(records)
-        df.to_csv(f'resultados_randomForest_{i}.csv', index=False, header=True)
+        df.to_csv(f'resultados_SVC_{i}.csv', index=False, header=True)
         records = list()
-        
+
+
 if __name__ == "__main__":
     main()
