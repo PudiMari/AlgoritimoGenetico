@@ -94,7 +94,7 @@ param_grid_KNN = {
 
 PARAMS_STRATEGY = ['mean', 'median', 'most_frequent']
 PARAMS_K = list(range(3, x_train.shape[1], 5))
-PARAMS_LEARNING_RATE = list(range(0, 100))
+PARAMS_LEARNING_RATE = list(range(1, 100))
 
 param_grid_AB = {
     'strategy': range(len(PARAMS_STRATEGY)),
@@ -337,7 +337,6 @@ def criar_individuo_randomForest():
     f1 = scores.mean()
 
     print("F1-score:", f1)
-    return best_individual, start_time, f1
 
 
 def criar_individuo_SVC():
@@ -390,7 +389,6 @@ def criar_individuo_SVC():
     f1 = scores.mean()
 
     print("F1-score:", f1)
-    return best_individual, start_time, f1
 
 
 def criar_individuo_LogReg():
@@ -444,7 +442,6 @@ def criar_individuo_LogReg():
     f1 = scores.mean()
 
     print("F1-score:", f1)
-    return best_individual, start_time, f1
 
 
 def criar_individuo_KNN():
@@ -498,7 +495,6 @@ def criar_individuo_KNN():
     f1 = scores.mean()
 
     print("F1-score:", f1)
-    return best_individual, start_time, f1
 
 
 def criar_individuo_AB():
@@ -550,40 +546,39 @@ def criar_individuo_AB():
     f1 = scores.mean()
 
     print("F1-score:", f1)
-    return best_individual, start_time, f1
 
 
 def main():
     global records
     for i in range(5):
         # RandomForest
-        best_individual, start_time, f1 = criar_individuo_randomForest()
-        df = pd.DataFrame.from_records(records)
-        df.to_csv(f'resultados_randomForest_{i}.csv', index=False, header=True)
+        criar_individuo_randomForest()
+        data_frame = pd.DataFrame.from_records(records)
+        data_frame.to_csv(f'resultados_randomForest_{i}.csv', index=False, header=True)
         records = list()
 
         # SVC
-        best_individual, start_time, f1 = criar_individuo_SVC()
-        df = pd.DataFrame.from_records(records)
-        df.to_csv(f'resultados_SVC_{i}.csv', index=False, header=True)
+        criar_individuo_SVC()
+        data_frame = pd.DataFrame.from_records(records)
+        data_frame.to_csv(f'resultados_SVC_{i}.csv', index=False, header=True)
         records = list()
 
         # Logistic Regression
-        best_individual, start_time, f1 = criar_individuo_LogReg()
-        df = pd.DataFrame.from_records(records)
-        df.to_csv(f'resultados_LogReg_{i}.csv', index=False, header=True)
+        criar_individuo_LogReg()
+        data_frame = pd.DataFrame.from_records(records)
+        data_frame.to_csv(f'resultados_LogReg_{i}.csv', index=False, header=True)
         records = list()
 
         # KNN
-        best_individual, start_time, f1 = criar_individuo_KNN()
-        df = pd.DataFrame.from_records(records)
-        df.to_csv(f'resultados_KNN_{i}.csv', index=False, header=True)
+        criar_individuo_KNN()
+        data_frame = pd.DataFrame.from_records(records)
+        data_frame.to_csv(f'resultados_KNN_{i}.csv', index=False, header=True)
         records = list()
 
         # AdaBoost
-        best_individual, start_time, f1 = criar_individuo_AB()
-        df = pd.DataFrame.from_records(records)
-        df.to_csv(f'resultados_AdaBoost_{i}.csv', index=False, header=True)
+        criar_individuo_AB()
+        data_frame = pd.DataFrame.from_records(records)
+        data_frame.to_csv(f'resultados_AdaBoost_{i}.csv', index=False, header=True)
         records = list()
 
 
