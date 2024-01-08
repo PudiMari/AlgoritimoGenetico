@@ -19,7 +19,7 @@ import random
 warnings.filterwarnings("ignore", category=UserWarning)
 warnings.filterwarnings("ignore", category=RuntimeWarning)
 
-RANDOM_STATE = 42
+RANDOM_STATE = 13
 random.seed(RANDOM_STATE)
 
 column_names_modelos = [' Modelos', 'F1 Score']
@@ -550,36 +550,67 @@ def criar_individuo_AB():
 
 def main():
     global records
-    for i in range(5):
-        # RandomForest
-        criar_individuo_randomForest()
-        data_frame = pd.DataFrame.from_records(records)
-        data_frame.to_csv(f'resultados_randomForest_{i}.csv', index=False, header=True)
-        records = list()
+#     for i in range(5):
+#         # RandomForest
+#         criar_individuo_randomForest()
+#         data_frame = pd.DataFrame.from_records(records)
+#         data_frame.to_csv(f'resultados_randomForest_{i}.csv', index=False, header=True)
+#         records = list()
 
-        # SVC
-        criar_individuo_SVC()
-        data_frame = pd.DataFrame.from_records(records)
-        data_frame.to_csv(f'resultados_SVC_{i}.csv', index=False, header=True)
-        records = list()
+#         # SVC
+#         criar_individuo_SVC()
+#         data_frame = pd.DataFrame.from_records(records)
+#         data_frame.to_csv(f'resultados_SVC_{i}.csv', index=False, header=True)
+#         records = list()
 
-        # Logistic Regression
-        criar_individuo_LogReg()
-        data_frame = pd.DataFrame.from_records(records)
-        data_frame.to_csv(f'resultados_LogReg_{i}.csv', index=False, header=True)
-        records = list()
+#         # Logistic Regression
+#         criar_individuo_LogReg()
+#         data_frame = pd.DataFrame.from_records(records)
+#         data_frame.to_csv(f'resultados_LogReg_{i}.csv', index=False, header=True)
+#         records = list()
 
-        # KNN
-        criar_individuo_KNN()
-        data_frame = pd.DataFrame.from_records(records)
-        data_frame.to_csv(f'resultados_KNN_{i}.csv', index=False, header=True)
-        records = list()
+#         # KNN
+#         criar_individuo_KNN()
+#         data_frame = pd.DataFrame.from_records(records)
+#         data_frame.to_csv(f'resultados_KNN_{i}.csv', index=False, header=True)
+#         records = list()
 
-        # AdaBoost
-        criar_individuo_AB()
-        data_frame = pd.DataFrame.from_records(records)
-        data_frame.to_csv(f'resultados_AdaBoost_{i}.csv', index=False, header=True)
-        records = list()
+#         # AdaBoost
+#         criar_individuo_AB()
+#         data_frame = pd.DataFrame.from_records(records)
+#         data_frame.to_csv(f'resultados_AdaBoost_{i}.csv', index=False, header=True)
+#         records = list()
+
+    # RandomForest
+    criar_individuo_randomForest()
+    data_frame = pd.DataFrame.from_records(records)
+    data_frame.to_csv(f'resultados_randomForest_SEED_13.csv', index=False, header=True)
+    records = list()
+
+    # SVC
+    criar_individuo_SVC()
+    data_frame = pd.DataFrame.from_records(records)
+    data_frame.to_csv(f'resultados_SVC_SEED_13.csv', index=False, header=True)
+    records = list()
+
+    # Logistic Regression
+    criar_individuo_LogReg()
+    data_frame = pd.DataFrame.from_records(records)
+    data_frame.to_csv(f'resultados_LogReg_SEED_13.csv', index=False, header=True)
+    records = list()
+
+    # KNN
+    criar_individuo_KNN()
+    data_frame = pd.DataFrame.from_records(records)
+    data_frame.to_csv(f'resultados_KNN_SEED_13.csv', index=False, header=True)
+    records = list()
+
+    # AdaBoost
+    criar_individuo_AB()
+    data_frame = pd.DataFrame.from_records(records)
+    data_frame.to_csv(f'resultados_AdaBoost_SEED_13.csv', index=False, header=True)
+    records = list()
+
 
 
 if __name__ == "__main__":
