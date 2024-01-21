@@ -21,7 +21,7 @@ warnings.filterwarnings("ignore", category=RuntimeWarning)
 
 IND_SIZE = 10
 RANDOM_STATE = 42
-random.seed(RANDOM_STATE)
+#random.seed(RANDOM_STATE)
 
 column_names_modelos = [' Modelos', 'F1 Score']
 
@@ -29,8 +29,7 @@ df = pd.read_csv("arrhythmia.csv", header=None).replace("?", np.nan)
 data = df.to_numpy()
 x, y = data[:, :-1], data[:, -1]
 y = pd.Series(y).apply(str)
-x_train, x_test, y_train, y_test = train_test_split(x, y, train_size=0.8, test_size=0.2, stratify=y,
-                                                    random_state=RANDOM_STATE)
+x_train, x_test, y_train, y_test = train_test_split(x, y, train_size=0.8, test_size=0.2, stratify=y, random_state=RANDOM_STATE)
 records = list()
 
 def evaluate_RF(individual):
@@ -39,7 +38,7 @@ def evaluate_RF(individual):
         ('imputer', SimpleImputer()),
         ('scaler', StandardScaler()),
         ('feature-selection', SelectKBest()),
-        ('randomForest', RandomForestClassifier())])
+        ('randomForest', RandomForestClassifier(random_state=RANDOM_STATE))])
 
     start_time = datetime.now()
     pipe.fit(x_train, y_train)
@@ -131,7 +130,7 @@ def evaluate_AB(individual):
         ('imputer', SimpleImputer()),
         ('scaler', StandardScaler()),
         ('feature-selection', SelectKBest()),
-        ('adaBoost', AdaBoostClassifier())])
+        ('adaBoost', AdaBoostClassifier(random_state=RANDOM_STATE))])
 
     start_time = datetime.now()
     pipe.fit(x_train, y_train)
